@@ -326,7 +326,8 @@ end
 
 # TODO: reverse storage order for integration back to what
 # Ainswort et al have so that we have stride-1 access.
-# TODO: Check sizes of arrays.
+# TODO: Check sizes of arrays that are initialized.
+
 function make_integrator(sdim, qpts, qwts, pdeg)
     # TODO: special case for 1d...
     qdeg = size(qpts, 1)
