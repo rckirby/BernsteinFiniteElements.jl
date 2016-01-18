@@ -102,6 +102,59 @@ function eval_step_impl(sdim, ell)
    
 end
 
+function moment_step_impl(sdim, ell)
+    alpha_symbs = [symbol("alpha",i) for i=1:sdim]
+    i_symbs = [symbol("i",i) for i=1:sdim]
+
+    aip1 = [:($(a)+1) for a in alpha_symbs]
+
+    # build innermost loop nest
+    Cin_args = vcat(reverse(i_symbs[ell+1:sdim]),
+                    reverse(aip1[1:ell]))
+    Cout_args = vcat(reverse(i_symbs[ell:sdim]),
+                     reverse(aip1[1:ell-1]))
+
+    Cin_ref = index_expr(symbol("C",sdim-ell), Cin_args)
+    Cout_ref = index_expr(symbol("C",sdim-ell+1), Cout_args)
+
+    result = Expr(:for,
+                  :($(alpha_symbs[ell])=0:$(degminalphas(ell-1))),
+                  Expr(:block,
+                       iloop(ell+1, sdim,
+                             :($(Cout_ref) += w * $(Cin_ref))),
+                       :(w *= r * ($(degminalphas(ell))) 
+                         / (1.0 + $(alpha_symbs[ell])))
+                       )
+                  )
+
+    # this gets rid of the artificial "begin/end" block in the ell=1 case
+    if ell > 1
+        result = Expr(:for,
+                      :($(i_symbs[ell]) = 1:q),
+                      Expr(:block,
+                           :(xi=qpts[$(i_symbs[ell]),$(sdim-ell+1)]),
+                           :(s=1-xi),
+                           :(r=xi/s),
+                           alphaloop(1, ell-1,
+                                     Expr(:block,
+                                          :(w=s^$(degminalphas(ell-1))),
+                                          result))))
+
+    else
+        result = Expr(:for,
+                      :($(i_symbs[ell]) = 1:q),
+                      Expr(:block,
+                           :(xi=qpts[$(i_symbs[ell]),$(sdim-ell+1)]),
+                           :(s=1-xi),
+                           :(r=xi/s),
+                           :(w=s^$(degminalphas(ell-1))),
+                           result))
+    end
+
+    return result
+   
+end
+
 function make_evaluation_constructor(sdim)
     # TODO: special case for 1d
 
@@ -172,6 +225,62 @@ function make_evaluation_constructor(sdim)
     
     return result
                      
+end
+
+function moment_step_impl(sdim, ell)
+    alpha_symbs = [symbol("alpha",i) for i=1:sdim]
+    i_symbs = [symbol("i",i) for i=1:sdim]
+
+    aip1 = [:($(a)+1) for a in alpha_symbs]
+
+    # build innermost loop nest
+    Fin_args = vcat(reverse(aip1[1:ell-1]),
+                    reverse(i_symbs[ell:sdim]))
+                    
+    Fout_args = vcat(reverse(i_symbs[ell+1:sdim]),
+                     reverse(aip1[1:ell]))
+
+    Fin_ref = index_expr(symbol("F",sdim-ell), Fin_args)
+    Fout_ref = index_expr(symbol("F",sdim-ell+1), Fout_args)
+
+    result = Expr(:for,
+                  :($(alpha_symbs[ell])=0:$(degminalphas(ell-1))),
+                  Expr(:block,
+                       iloop(ell+1, sdim,
+                             :($(Fout_ref) += w * $(Fin_ref))),
+                       :(w *= r * ($(degminalphas(ell))) 
+                         / (1.0 + $(alpha_symbs[ell])))
+                       )
+                  )
+
+    # this gets rid of the artificial "begin/end" block in the ell=1 case
+    if ell > 1
+        result = Expr(:for,
+                      :($(i_symbs[ell]) = 1:q),
+                      Expr(:block,
+                           :(xi=qpts[$(i_symbs[ell]),$(sdim-ell+1)]),
+                           :(omega = qwts[$(i_symbs[ell]),$(sdim-ell+1)]),
+                           :(s=1-xi),
+                           :(r=xi/s),
+                           alphaloop(1, ell-1,
+                                     Expr(:block,
+                                          :(w=omega * s^$(degminalphas(ell-1))),
+                                          result))))
+
+    else
+        result = Expr(:for,
+                      :($(i_symbs[ell]) = 1:q),
+                      Expr(:block,
+                           :(xi=qpts[$(i_symbs[ell]),$(sdim-ell+1)]),
+                           :(omega = qwts[$(i_symbs[ell]),$(sdim-ell+1)]),
+                           :(s=1-xi),
+                           :(r=xi/s),
+                           :(w=omega * s^$(degminalphas(ell-1))),
+                           result))
+    end
+
+    return result
 
 end
 
+# now need to make moment constructor as well.  Lots of copy and paste?
